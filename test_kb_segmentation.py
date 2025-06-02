@@ -7,6 +7,9 @@ from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
 from typing import List
 import re
+import sys
+import argparse
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -89,20 +92,34 @@ def augment_segments_with_kb(segments: List[SimpleSegment], kb_extractor: Simple
     
     return augmented
 
-def test_kb_segmentation():
+def test_kb_segmentation(text_file: str = None):
     """Test the KB-augmented segmentation."""
     
-    # Sample narrative text
-    text = """
-    John was angry about the argument. He stormed out of the room and slammed the door.
-    Mary felt terrible about what had happened. She had never seen him so upset before.
-    The old house creaked in the wind. Sarah wondered if they would ever reconcile.
-    Later that evening, John returned with flowers. He apologized for his outburst.
-    """
+    # Load text from file or use default sample
+    if text_file:
+        try:
+            with open(text_file, 'r', encoding='utf-8') as f:
+                text = f.read().strip()
+            print(f"Loaded text from: {text_file}")
+        except FileNotFoundError:
+            print(f"Error: File '{text_file}' not found.")
+            return
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            return
+    else:
+        # Default sample narrative text
+        text = """
+        John was angry about the argument. He stormed out of the room and slammed the door.
+        Mary felt terrible about what had happened. She had never seen him so upset before.
+        The old house creaked in the wind. Sarah wondered if they would ever reconcile.
+        Later that evening, John returned with flowers. He apologized for his outburst.
+        """
+        print("Using default sample text")
     
-    print("Testing KB-Augmented Segmentation")
+    print("\nTesting KB-Augmented Segmentation")
     print("=" * 50)
-    print(f"Original text:\n{text}\n")
+    print(f"Text preview (first 200 chars):\n{text[:200]}{'...' if len(text) > 200 else ''}\n")
     
     # Initialize components
     kb_extractor = SimpleKBExtractor()
@@ -140,4 +157,10 @@ def test_kb_segmentation():
         print("✗ KB augmentation doesn't help coherence")
 
 if __name__ == "__main__":
-    test_kb_segmentation()
+    parser = argparse.ArgumentParser(description="Test KB-augmented narrative segmentation")
+    parser.add_argument("--text-file", "-f", type=str, help="Path to text file to analyze")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+    
+    args = parser.parse_args()
+    
+    test_kb_segmentation(args.text_file)

@@ -34,7 +34,14 @@ OPENAI_API_KEY=your_openai_api_key_here
 ### 3. Run Test
 
 ```bash
+# Use default sample text
 python test_kb_segmentation.py
+
+# Analyze your own text file
+python test_kb_segmentation.py --text-file your_story.txt
+
+# Or use the provided sample
+python test_kb_segmentation.py -f sample_story.txt
 ```
 
 ## Expected Output
