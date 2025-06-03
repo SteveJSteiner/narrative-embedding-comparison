@@ -41,10 +41,12 @@ I manually analyzed both segmentation outputs to identify qualitatively "bad" se
 
 +1 (dialogue split)
 LLM+KB:
+
 4. "What does Bessie say I have done?" I asked. "Jane, I don'...
 5. A breakfast-room adjoined the drawing-room, I slipped in the...
 
 LLM-only
+
 4. "What does Bessie say I have done?" I asked.
 5. "Jane, I don't like cavillers or questioners; besides, there...
 6. A breakfast-room adjoined the drawing-room, I slipped in the...
@@ -52,10 +54,12 @@ LLM-only
 +2 (fragmented exchange)
 
 LLM+KB 
+
 28. "What were you doing behind the curtain?" he asked. "I was...
 29. I returned to the window and fetched it thence.
 
 LLM-only
+
 29. "What were you doing behind the curtain?" he asked.
 30. "I was reading."
 31. "Show the book."
@@ -63,9 +67,11 @@ LLM-only
 
 +3 (separated reactions)
 LLM+KB
+
 36. "Dear! dear! What a fury to fly at Master John!" "Did ever...
 
 LLM-only:
+
 39. "Dear! dear! What a fury to fly at Master John!"
 40. "Did ever anybody see such a picture of passion!"
 41. Then Mrs. Reed subjoined—
