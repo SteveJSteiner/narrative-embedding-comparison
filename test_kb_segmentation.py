@@ -3,7 +3,6 @@ Simple test script to run KB-augmented segmentation comparison.
 """
 
 import openai
-from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
 from typing import List
 import re
@@ -40,7 +39,7 @@ Facts:"""
                 model="gpt-4.1-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=500
+                max_tokens=2000
             )
             
             facts = []
@@ -53,14 +52,6 @@ Facts:"""
         except Exception as e:
             print(f"Error extracting facts: {e}")
             return []
-
-# Simple embedding model wrapper
-class SimpleEmbeddingModel:
-    def __init__(self):
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-    
-    def embed_texts(self, texts: List[str]):
-        return self.model.encode(texts)
 
 # Simple segmenter
 def simple_sentence_segmentation(text: str) -> List[SimpleSegment]:
@@ -75,90 +66,143 @@ def simple_sentence_segmentation(text: str) -> List[SimpleSegment]:
     
     return segments
 
-def augment_segments_with_kb(segments: List[SimpleSegment], kb_extractor: SimpleKBExtractor) -> List[SimpleSegment]:
-    """Add KB facts to segments."""
-    augmented = []
+# LLM-based segmentation using KB context
+def llm_kb_segmentation(text: str, kb_facts: List[str], client) -> List[SimpleSegment]:
+    """Let LLM segment text using KB facts as context."""
+    facts_context = "; ".join(kb_facts) if kb_facts else "No facts extracted"
     
-    for seg in segments:
-        facts = kb_extractor.extract_facts(seg.text)
-        if facts:
-            # Append facts to text
-            fact_text = "; ".join(facts)
-            augmented_text = f"{seg.text}\n[KB: {fact_text}]"
-        else:
-            augmented_text = seg.text
-        
-        augmented.append(SimpleSegment(text=augmented_text))
-    
-    return augmented
+    prompt = f"""Segment this text into meaningful narrative units using the knowledge facts as context.
 
-def test_kb_segmentation(text_file: str = None):
+Text:
+{text}
+
+Knowledge Facts: {facts_context}
+
+Instructions: Insert [BREAK] markers where you think segments should be split. Consider character moments, scene changes, and thematic shifts based on the knowledge facts.
+
+Segmented text:"""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=12000
+        )
+        
+        segmented_text = response.choices[0].message.content
+        if not segmented_text:
+            return simple_sentence_segmentation(text)
+            
+        # Split on [BREAK] markers
+        segments = []
+        parts = segmented_text.split('[BREAK]')
+        
+        for part in parts:
+            part = part.strip()
+            if len(part) > 10:  # Skip very short segments
+                segments.append(SimpleSegment(text=part))
+        
+        return segments if segments else simple_sentence_segmentation(text)
+        
+    except Exception as e:
+        print(f"Error in LLM segmentation: {e}")
+        return simple_sentence_segmentation(text)
+
+# LLM-only segmentation (no KB context)
+def llm_only_segmentation(text: str, client) -> List[SimpleSegment]:
+    """Let LLM segment text WITHOUT KB context."""
+    prompt = f"""Segment this text into meaningful narrative units.
+
+Text:
+{text}
+
+Instructions: Insert [BREAK] markers where you think segments should be split. Consider character moments, scene changes, and thematic shifts.
+
+Segmented text:"""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=8000
+        )
+        
+        segmented_text = response.choices[0].message.content
+        if not segmented_text:
+            return simple_sentence_segmentation(text)
+            
+        # Split on [BREAK] markers
+        segments = []
+        parts = segmented_text.split('[BREAK]')
+        
+        for part in parts:
+            part = part.strip()
+            if len(part) > 10:  # Skip very short segments
+                segments.append(SimpleSegment(text=part))
+        
+        return segments if segments else simple_sentence_segmentation(text)
+        
+    except Exception as e:
+        print(f"Error in LLM-only segmentation: {e}")
+        return simple_sentence_segmentation(text)
+
+def test_kb_segmentation(text_file: str):
     """Test the KB-augmented segmentation."""
     
-    # Load text from file or use default sample
-    if text_file:
-        try:
-            with open(text_file, 'r', encoding='utf-8') as f:
-                text = f.read().strip()
-            print(f"Loaded text from: {text_file}")
-        except FileNotFoundError:
-            print(f"Error: File '{text_file}' not found.")
-            return
-        except Exception as e:
-            print(f"Error reading file: {e}")
-            return
-    else:
-        # Default sample narrative text
-        text = """
-        John was angry about the argument. He stormed out of the room and slammed the door.
-        Mary felt terrible about what had happened. She had never seen him so upset before.
-        The old house creaked in the wind. Sarah wondered if they would ever reconcile.
-        Later that evening, John returned with flowers. He apologized for his outburst.
-        """
-        print("Using default sample text")
+    # Load text from file
+    try:
+        with open(text_file, 'r', encoding='utf-8') as f:
+            text = f.read().strip()
+        print(f"Loaded text from: {text_file}")
+    except FileNotFoundError:
+        print(f"Error: File '{text_file}' not found.")
+        return
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return
     
     print("\nTesting KB-Augmented Segmentation")
     print("=" * 50)
     print(f"Text preview (first 200 chars):\n{text[:200]}{'...' if len(text) > 200 else ''}\n")
-    
-    # Initialize components
+      # Initialize components
     kb_extractor = SimpleKBExtractor()
-    embedding_model = SimpleEmbeddingModel()
-    
-    # Baseline segmentation
+      # Baseline segmentation
     baseline_segments = simple_sentence_segmentation(text)
     print(f"Baseline segments ({len(baseline_segments)}):")
     for i, seg in enumerate(baseline_segments):
-        print(f"  {i+1}: {seg.text}")
+        print(f"  {i+1}: {seg.text[:60]}{'...' if len(seg.text) > 60 else ''}")
     print()
     
-    # KB-augmented segmentation
-    kb_segments = augment_segments_with_kb(baseline_segments, kb_extractor)
-    print(f"KB-augmented segments ({len(kb_segments)}):")
-    for i, seg in enumerate(kb_segments):
-        print(f"  {i+1}: {seg.text}")
+    # Extract KB facts from full text
+    print("Extracting KB facts...")
+    all_facts = kb_extractor.extract_facts(text)
+    print(f"Extracted {len(all_facts)} facts")
+      # LLM-only segmentation (no KB)
+    print("Creating LLM-only segments...")
+    llm_only_segments = llm_only_segmentation(text, kb_extractor.client)
+    print(f"LLM-only segments ({len(llm_only_segments)}):")
+    for i, seg in enumerate(llm_only_segments):
+        print(f"  {i+1}: {seg.text[:60]}{'...' if len(seg.text) > 60 else ''}")
+    print()
+      # LLM-based KB-informed segmentation
+    print("Creating LLM KB-informed segments...")
+    llm_kb_segments = llm_kb_segmentation(text, all_facts, kb_extractor.client)
+    print(f"LLM KB segments ({len(llm_kb_segments)}):")
+    for i, seg in enumerate(llm_kb_segments):
+        print(f"  {i+1}: {seg.text[:60]}{'...' if len(seg.text) > 60 else ''}")
     print()
     
-    # Compare using the segmentation comparator
-    from segmentation_comparison import SimpleSegmentationComparator
-    
-    comparator = SimpleSegmentationComparator(embedding_model)
-    results = comparator.compare_methods(text, baseline_segments, kb_segments)
-    
-    print("Comparison Results:")
-    print("=" * 30)
-    print(f"Baseline coherence: {results['baseline']['coherence']:.3f}")
-    print(f"KB-augmented coherence: {results['kb_augmented']['coherence']:.3f}")
-    print(f"Improvement: {results['improvement']:.3f}")
-    
-    if results['improvement'] > 0:
-        print("✓ KB augmentation improves coherence!")
-    else:
-        print("✗ KB augmentation doesn't help coherence")
+    print("Segmentation Complete!")
+    print("=" * 50)
+    print(f"Baseline segments: {len(baseline_segments)}")
+    print(f"LLM-only segments: {len(llm_only_segments)}")
+    print(f"LLM+KB segments: {len(llm_kb_segments)}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test KB-augmented narrative segmentation")
-    parser.add_argument("--text-file", "-f", type=str, help="Path to text file to analyze")
+    parser.add_argument("--text-file", "-f", type=str, required=True, help="Path to text file to analyze")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     
     args = parser.parse_args()
