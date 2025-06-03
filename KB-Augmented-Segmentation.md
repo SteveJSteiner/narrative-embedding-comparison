@@ -40,6 +40,7 @@ I manually analyzed both segmentation outputs to identify qualitatively "bad" se
 **LLM-Only Segmentation: 42 segments**
 
 +1 (dialogue split)
+
 LLM+KB:
 
 4. "What does Bessie say I have done?" I asked. "Jane, I don'...
@@ -66,6 +67,7 @@ LLM-only
 32. I returned to the window and fetched it thence.
 
 +3 (separated reactions)
+
 LLM+KB
 
 36. "Dear! dear! What a fury to fly at Master John!" "Did ever...
